@@ -1,0 +1,1037 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Dual Actuator Panel Rotation Mounting Position Optimizer and Load Calculator</title>
+    <style>
+        :root {
+            --bg: #0b1020;
+            --card: #121a33;
+            --muted: #a7b0d6;
+            --text: #e9ecff;
+            --accent: #7aa2ff;
+            --bad: #ff6b6b;
+            --good: #3ddc97;
+        }
+
+        * {
+            box-sizing: border-box
+        }
+
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+            background: linear-gradient(180deg, #070a14, #0b1020);
+            color: var(--text)
+        }
+
+        .wrap {
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 20px
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: 20px;
+            font-weight: 700
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 360px 1fr;
+            gap: 14px
+        }
+
+        .card {
+            background: rgba(18, 26, 51, .9);
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 14px;
+            padding: 14px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, .25)
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            color: var(--muted);
+            margin: 10px 0 6px
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid rgba(255, 255, 255, .12);
+            background: #0b1020;
+            color: var(--text);
+            outline: none
+        }
+
+        input[type="range"] {
+            width: 100%
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            align-items: stretch;
+        }
+        
+        .row > div {
+            display: flex;
+            flex-direction: column;
+        }
+
+        button {
+            width: 100%;
+            padding: 11px 12px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, .12);
+            background: linear-gradient(180deg, rgba(122, 162, 255, .25), rgba(122, 162, 255, .12));
+            color: var(--text);
+            font-weight: 700;
+            cursor: pointer
+        }
+
+        button:hover {
+            border-color: rgba(122, 162, 255, .55)
+        }
+
+        .small {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.35
+        }
+
+        .pill {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            padding: 6px 10px;
+            border-radius: 999px;
+            border: 1px solid rgba(255, 255, 255, .12);
+            background: rgba(11, 16, 32, .6);
+            font-size: 12px;
+            color: var(--muted)
+        }
+
+        .pill b {
+            color: var(--text);
+            font-weight: 700
+        }
+
+        .status {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 10px
+        }
+
+        .ok {
+            border-color: rgba(61, 220, 151, .35)
+        }
+
+        .bad {
+            border-color: rgba(255, 107, 107, .35)
+        }
+
+        .ok b {
+            color: var(--good)
+        }
+
+        .bad b {
+            color: var(--bad)
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, .10);
+            background: rgba(11, 16, 32, .55);
+        }
+
+        .canvasWrap {
+            height: 600px;
+            /* hard limit: chart can't exceed this height */
+            width: 100%;
+        }
+
+        .canvasWrap canvas {
+            height: 100% !important;
+            /* force canvas to fill wrapper */
+        }
+
+        .two {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 14px
+        }
+
+        .mono {
+            font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+            font-size: 12px
+        }
+
+        details {
+            margin-top: 10px
+        }
+
+        details summary {
+            cursor: pointer;
+            color: var(--accent);
+            font-weight: 700
+        }
+
+        .hint {
+            margin-top: 8px
+        }
+    </style>
+</head>
+
+<body>
+    <div class="wrap">
+        <h1>Dual Actuator Panel Rotation Mounting Position Optimizer and Load Calculator</h1>
+
+        <div class="grid">
+            <div class="card">
+                <div class="small">
+                    <b>What this tool does:</b>
+                    <p>This tool finds the optimal mounting position for dual actuators to rotate a panel from vertical (0°) to horizontal (90°), while minimizing the actuator load throughout the rotation.</p>
+                    <p>All inputs must be in consistent units (in/lb, mm/N, etc.).</p>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>Panel weight</label>
+                        <input id="G" type="number" value="400" step="1" min="0" />
+                    </div>
+                    <div>
+                        <label>Distance between center of gravity of panel and hinge</label>
+                        <input id="c" type="number" value="5" step="0.1" min="0" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>Distance between stroke-end mounting point and hinge</label>
+                        <input id="d" type="number" value="3" step="0.1" min="0.1" />
+                    </div>
+                    <div>
+                        <label>Max actuator load (per actuator)</label>
+                        <input id="Fmax" type="number" value="800" step="1" min="0" />
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div>
+                        <label>Actuator Extended H2H Length </sub></label>
+                        <input id="Rc1" type="number" value="10" step="0.1" min="0" />
+                    </div>
+                    <div>
+                        <label>Actuator Retracted H2H Length </sub></label>
+                        <input id="Rc2" type="number" value="6" step="0.1" min="0" />
+                    </div>
+                </div>
+
+                <button id="calcBtn">Calculate</button>
+
+                <div class="status" id="status"></div>
+
+                <details>
+                    <summary>Advanced</summary>
+                    <div class="hint small">
+                        <b>Angle resolution</b> controls accuracy & speed. Higher = smoother chart / better max-load
+                        estimate.
+                    </div>
+                    <label>Angle samples (0–90°)</label>
+                    <input id="samples" type="number" value="181" step="1" min="21" />
+                </details>
+
+                <div class="small" style="margin-top:10px">
+                    Geometry conventions:
+                    <div class="mono">
+                        hinge = (0,0) <br />
+                        stroke-end = (d·sinθ, -d·cosθ) <br />
+                        motor-end = (x,y) = (-a,-b) in 3rd quadrant (or custom)
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <div class="two">
+                    <div>
+                        <div class="pill"><b>Geometry</b> (scaled)</div>
+                        <div style="height:10px"></div>
+                        <canvas id="geom" width="640" height="520"></canvas>
+                        <div style="margin-top:12px">
+                            <label>
+                                <input id="useCustomMount" type="checkbox" />
+                                Use custom motor-end mounting point
+                            </label>
+                            <div id="customMountDetails" style="display:none">
+                                <div class="row">
+                                    <div>
+                                        <label>Custom motor-end X (negative)</label>
+                                        <input id="customX" type="number" value="0" step="0.1" />
+                                    </div>
+                                    <div>
+                                        <label>Custom motor-end Y (negative)</label>
+                                        <input id="customY" type="number" value="0" step="0.1" />
+                                    </div>
+                                </div>
+                                <div class="small">Enable this when mechanical restrictions force a different motor-end location. The custom point must be the actuator's retracted H2H distance away from the stroke-end at 0°. Drag the motor-end point in the geometry view when custom is enabled.</div>
+                            </div>
+                            <div style="margin-top:12px">
+                                <label>Preview angle (degrees)</label>
+                                <input id="angleDeg" type="range" min="0" max="90" value="0" step="1" />
+                                <div class="small">Current angle: <span id="angleReadout" class="mono">0</span>°</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="pill"><b>Load vs angle</b> (per actuator)</div>
+                        <div style="height:10px"></div>
+                        <div class="canvasWrap">
+                            <canvas id="chart" width="640" height="520"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Chart.js (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script>
+        // ---------- Math helpers ----------
+        const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+        const rad = (deg) => deg * Math.PI / 180;
+
+        // Your circle system:
+        // (x - d)^2 + y^2 = Rc1^2
+        // x^2 + (y + d)^2 = Rc2^2
+        //
+        // Derivation yields line: x + y = S, where S = (Rc2^2 - Rc1^2) / (2d)
+        // Two solutions (if discriminant >= 0):
+        // ( (d + S ± sqrt(2Rc1^2 - (d - S)^2))/2 , (S - d ∓ sqrt(...))/2 )
+        function circleIntersections(d, Rc1, Rc2) {
+            if (d <= 0) return [];
+            const S = (Rc2 * Rc2 - Rc1 * Rc1) / (2 * d);
+            const disc = 2 * Rc1 * Rc1 - (d - S) * (d - S);
+            if (disc < -1e-12) return [];
+            const t = Math.sqrt(Math.max(0, disc));
+
+            const p1 = { x: (d + S - t) / 2, y: (S - d + t) / 2 };
+            const p2 = { x: (d + S + t) / 2, y: (S - d - t) / 2 };
+
+            // If t==0, both are same point; dedupe
+            const out = [p1];
+            if (t > 1e-10) out.push(p2);
+            return out;
+        }
+
+        // Your load model:
+        // f(x)= G*sin(x) * sqrt(a^2+b^2+d^2 - 2*sqrt(a^2+b^2)*d*cos(atan(a/b)+x)) / (sin(atan(a/b)+x)*sqrt(a^2+b^2)) * (c/d)
+        //
+        // Here x = θ in radians (0..pi/2), motor point = (-a,-b) with a,b>0.
+        // IMPORTANT: This formula blows up when sin(atan(a/b)+x)=0 (singularity). We'll guard it.
+        function loadTotal(theta, G, c, d, a, b) {
+            const Rm = Math.sqrt(a * a + b * b);
+            if (Rm <= 0 || d <= 0) return NaN;
+
+            const phi = Math.atan2(a, b); // atan(a/b) but robust
+            const denom = Math.sin(phi + theta) * Rm;
+            if (Math.abs(denom) < 1e-10) return NaN;
+
+            const inside = a * a + b * b + d * d - 2 * Rm * d * Math.cos(phi + theta);
+            if (inside < -1e-10) return NaN;
+
+            const numer = Math.sqrt(Math.max(0, inside));
+            return (G * Math.sin(theta)) * (numer / denom) * (c / d);
+        }
+
+        // We assume TWO actuators share the load equally:
+        function loadPerActuator(theta, G, c, d, a, b) {
+            const total = loadTotal(theta, G, c, d, a, b);
+            if (!isFinite(total)) return NaN;
+            return total / 2;
+        }
+
+        // ---------- UI / State ----------
+        const els = {
+            G: document.getElementById("G"),
+            c: document.getElementById("c"),
+            d: document.getElementById("d"),
+            Fmax: document.getElementById("Fmax"),
+            Rc1: document.getElementById("Rc1"),
+            Rc2: document.getElementById("Rc2"),
+            useCustomMount: document.getElementById("useCustomMount"),
+            customX: document.getElementById("customX"),
+            customY: document.getElementById("customY"),
+            samples: document.getElementById("samples"),
+            angleDeg: document.getElementById("angleDeg"),
+            angleReadout: document.getElementById("angleReadout"),
+            status: document.getElementById("status"),
+            geom: document.getElementById("geom"),
+            chart: document.getElementById("chart"),
+            calcBtn: document.getElementById("calcBtn"),
+            customMountDetails: document.getElementById("customMountDetails")
+        };
+
+        let best = null; // {x,y,a,b, maxLoad, series:[{deg,load}], reason?}
+        let suggestedBest = null;
+        let chart = null;
+        let geomTransform = null;
+        let draggingMotor = false;
+        let lastValidCustom = null;
+        let syncingCustom = false;
+
+        function readInputs() {
+            const G = Number(els.G.value);
+            const c = Number(els.c.value);
+            const d = Number(els.d.value);
+            const Fmax = Number(els.Fmax.value);
+            const Rc1 = Number(els.Rc1.value);
+            const Rc2 = Number(els.Rc2.value);
+            const useCustomMount = Boolean(els.useCustomMount.checked);
+            const customX = Number(els.customX.value);
+            const customY = Number(els.customY.value);
+            const samples = Math.max(21, Math.floor(Number(els.samples.value || 181)));
+            return { G, c, d, Fmax, Rc1, Rc2, samples, useCustomMount, customX, customY };
+        }
+
+        function pill(label, value, ok = null) {
+            const div = document.createElement("div");
+            div.className = "pill " + (ok === true ? "ok" : ok === false ? "bad" : "");
+            div.innerHTML = `<span>${label}</span> <b>${value}</b>`;
+            return div;
+        }
+
+        function setStatus(parts) {
+            els.status.innerHTML = "";
+            parts.forEach(p => els.status.appendChild(p));
+        }
+
+        function warnCustom(msg) {
+            setStatus([
+                pill("Status", "Custom mount input invalid", false),
+                pill("Reason", msg, false),
+                pill("Tip", "Point must lie on Rc2 arc in 3rd quadrant", null)
+            ]);
+            renderGeometry();
+        }
+
+        function validateCustomPoint(x, y) {
+            const { d, Rc1, Rc2 } = readInputs();
+            if (![x, y, d, Rc2].every(v => isFinite(v))) return { ok: false, reason: "Invalid number" };
+            const center = { x: 0, y: -d };
+            const dist = Math.hypot(x - center.x, y - center.y);
+            if (Math.abs(dist - Rc2) > 1e-3) return { ok: false, reason: "Point not on Rc2 arc" };
+            if (!(x < 0 && y < 0)) return { ok: false, reason: "Point must be in 3rd quadrant" };
+            const h2h90 = Math.hypot(x - d, y);
+            if (isFinite(Rc1) && Rc1 > 0 && isFinite(h2h90) && h2h90 > Rc1 + 1e-6) {
+                return { ok: false, reason: "H2H at 90° exceeds Rc1" };
+            }
+            return { ok: true };
+        }
+
+        function syncCustomFromX(xVal) {
+            const { d, Rc2 } = readInputs();
+            const centerY = -d;
+            const dx = xVal;
+            const inside = Rc2 * Rc2 - dx * dx;
+            if (!isFinite(inside) || inside < 0) return { ok: false, reason: "X is off the Rc2 arc" };
+            const root = Math.sqrt(inside);
+            const y1 = centerY + root;
+            const y2 = centerY - root;
+            const targetY = isFinite(Number(els.customY.value)) ? Number(els.customY.value) : (lastValidCustom ? lastValidCustom.y : centerY - Math.abs(root));
+            const y = Math.abs(y1 - targetY) <= Math.abs(y2 - targetY) ? y1 : y2;
+            return { ok: true, x: xVal, y };
+        }
+
+        function syncCustomFromY(yVal) {
+            const { d, Rc2 } = readInputs();
+            const centerY = -d;
+            const dy = yVal - centerY;
+            const inside = Rc2 * Rc2 - dy * dy;
+            if (!isFinite(inside) || inside < 0) return { ok: false, reason: "Y is off the Rc2 arc" };
+            const root = Math.sqrt(inside);
+            const x = -root;
+            if (!(x < 0)) return { ok: false, reason: "X must be negative on the arc" };
+            return { ok: true, x, y: yVal };
+        }
+
+        // ---------- Optimization (choose best intersection point in 3rd quadrant) ----------
+        function computeBest() {
+            const { G, c, d, Fmax, Rc1, Rc2, samples, useCustomMount, customX, customY } = readInputs();
+            const rcTol = 1e-3;
+
+            // Basic validation
+            if (![G, c, d, Fmax, Rc1, Rc2].every(v => isFinite(v) && v >= 0) || d <= 0 || Rc1 <= 0 || Rc2 <= 0) {
+                best = null;
+                setStatus([pill("Status", "Invalid inputs", false)]);
+                return;
+            }
+
+            if (useCustomMount) {
+                if (![customX, customY].every(v => isFinite(v))) {
+                    best = null;
+                    setStatus([pill("Status", "Custom mount inputs invalid", false)]);
+                    renderGeometry();
+                    return;
+                }
+
+                const a = -customX;
+                const b = -customY;
+                if (a <= 0 || b <= 0) {
+                    best = null;
+                    setStatus([
+                        pill("Status", "Custom mount outside model assumptions", false),
+                        pill("Note", "Model expects motor-end in 3rd quadrant (x<0, y<0)", false)
+                    ]);
+                    renderGeometry();
+                    return;
+                }
+
+                const strokeAtZero = { x: 0, y: -d };
+                const h2hAtZero = Math.hypot(customX - strokeAtZero.x, customY - strokeAtZero.y);
+                if (!isFinite(h2hAtZero) || Math.abs(h2hAtZero - Rc2) > rcTol) {
+                    best = null;
+                    setStatus([
+                        pill("Status", "Custom mount violates retracted length at 0°", false),
+                        pill("Required H2H @ 0°", Rc2.toFixed(3), false),
+                        pill("Actual H2H @ 0°", h2hAtZero.toFixed(3), false),
+                        pill("Tip", "Adjust custom point to match R\u2091\u2082 from stroke-end at 0\u00b0", null)
+                    ]);
+                    renderGeometry();
+                    return;
+                }
+
+                const series = [];
+                let maxLoad = -Infinity;
+                let badCount = 0;
+
+                for (let i = 0; i < samples; i++) {
+                    const deg = 90 * (i / (samples - 1));
+                    const theta = rad(deg);
+                    const L = loadPerActuator(theta, G, c, d, a, b);
+                    series.push({ deg, load: L });
+                    if (!isFinite(L)) { badCount++; continue; }
+                    if (L > maxLoad) maxLoad = L;
+                }
+
+                const invalidFrac = badCount / samples;
+                if (invalidFrac > 0.15 || !isFinite(maxLoad)) {
+                    best = null;
+                    setStatus([
+                        pill("Status", "Custom mount yields singularities / invalid loads", false),
+                        pill("Tip", "Try a different custom point", null)
+                    ]);
+                    renderGeometry();
+                    return;
+                }
+
+                best = { x: customX, y: customY, a, b, maxLoad, series, custom: true };
+                lastValidCustom = { x: customX, y: customY };
+                const pass = best.maxLoad <= Fmax;
+                setStatus([
+                    pill("Custom motor mount (x,y)", `(${best.x.toFixed(3)}, ${best.y.toFixed(3)})`, null),
+                    pill("Peak load / actuator", best.maxLoad.toFixed(2), pass),
+                    pill("Rated max / actuator", Fmax.toFixed(2), pass),
+                    pill("Result", pass ? "PASS" : "FAIL", pass)
+                ]);
+
+                renderChart();
+                renderGeometry();
+                return;
+            }
+
+            const pts = circleIntersections(d, Rc1, Rc2);
+
+            // Filter 3rd quadrant: x<0,y<0 -> a=-x>0,b=-y>0
+            const viable = pts
+                .map(p => ({ ...p, a: -p.x, b: -p.y }))
+                .filter(p => p.x < 0 && p.y < 0 && p.a > 0 && p.b > 0);
+
+            if (viable.length === 0) {
+                best = null;
+                suggestedBest = null;
+                const S = (Rc2 * Rc2 - Rc1 * Rc1) / (2 * d);
+                const disc = 2 * Rc1 * Rc1 - (d - S) * (d - S);
+                const discMsg = (disc < 0) ? `No intersections (disc=${disc.toFixed(4)} < 0)` : `Intersections exist, but none in 3rd quadrant`;
+                setStatus([
+                    pill("Status", "No viable mounting point", false),
+                    pill("Note", discMsg, false),
+                    pill("Tip", "Try adjusting d, Rc1, Rc2", null),
+                ]);
+                return;
+            }
+
+            // For each viable point, compute max load over 0..90°
+            const candidates = [];
+            for (const p of viable) {
+                const series = [];
+                let maxLoad = -Infinity;
+                let badCount = 0;
+
+                for (let i = 0; i < samples; i++) {
+                    const deg = 90 * (i / (samples - 1));
+                    const theta = rad(deg);
+                    const L = loadPerActuator(theta, G, c, d, p.a, p.b);
+                    series.push({ deg, load: L });
+                    if (!isFinite(L)) { badCount++; continue; }
+                    if (L > maxLoad) maxLoad = L;
+                }
+
+                // If too many invalid points (singularity), consider unusable
+                const invalidFrac = badCount / samples;
+                if (invalidFrac > 0.15 || !isFinite(maxLoad)) continue;
+
+                candidates.push({ ...p, maxLoad, series });
+            }
+
+            if (candidates.length === 0) {
+                best = null;
+                suggestedBest = null;
+                setStatus([
+                    pill("Status", "All viable points had singularities / invalid loads", false),
+                    pill("Tip", "Try moving geometry (d) or choosing different Rc1/Rc2", null)
+                ]);
+                return;
+            }
+
+            candidates.sort((u, v) => u.maxLoad - v.maxLoad);
+            best = candidates[0];
+            suggestedBest = best;
+
+            const pass = best.maxLoad <= Fmax;
+            setStatus([
+                pill("Best motor mount (x,y)", `(${best.x.toFixed(3)}, ${best.y.toFixed(3)})`, null),
+                pill("Peak load / actuator", best.maxLoad.toFixed(2), pass),
+                pill("Rated max / actuator", Fmax.toFixed(2), pass),
+                pill("Result", pass ? "PASS" : "FAIL", pass)
+            ]);
+
+            renderChart();
+            renderGeometry();
+        }
+
+        // ---------- Chart ----------
+        function renderChart() {
+            const { Fmax } = readInputs();
+            const ctx = els.chart.getContext("2d");
+
+            const labels = best ? best.series.map(p => p.deg) : [];
+            const data = best ? best.series.map(p => (isFinite(p.load) ? p.load : null)) : [];
+
+            if (chart) chart.destroy();
+            chart = new Chart(ctx, {
+                type: "line",
+                data: {
+                    labels,
+                    datasets: [
+                        { label: "Load per actuator", data, pointRadius: 0, borderWidth: 2, tension: 0.2 },
+                        { label: "Max rating", data: labels.map(_ => Fmax), pointRadius: 0, borderWidth: 1, borderDash: [6, 6] }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    resizeDelay: 150,
+                    plugins: {
+                        legend: { labels: { color: "#e9ecff" } },
+                        tooltip: {
+                            callbacks: {
+                                label: (ctx) => {
+                                    const v = ctx.raw;
+                                    if (v === null) return "Load: (invalid)";
+                                    return `${ctx.dataset.label}: ${Number(v).toFixed(2)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { title: { display: true, text: "Angle (deg)", color: "#a7b0d6" }, ticks: { color: "#a7b0d6", stepSize: 10 }, grid: { color: "rgba(255,255,255,.06)" }, type: "linear" },
+                        y: { title: { display: true, text: "Load (per actuator)", color: "#a7b0d6" }, ticks: { color: "#a7b0d6" }, grid: { color: "rgba(255,255,255,.06)" } }
+                    }
+                }
+            });
+        }
+
+        // ---------- Geometry drawing ----------
+        function renderGeometry() {
+            const canvas = els.geom;
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const labelFont = "14px system-ui,-apple-system,Segoe UI,Roboto,Arial";
+            const labelX = 12;
+            const labelTop = 2;
+            const labelGap = 18;
+            const legendTop = 20;
+
+            const { d, c, Rc2, useCustomMount, customX, customY } = readInputs();
+            const theta = rad(Number(els.angleDeg.value));
+            els.angleReadout.textContent = String(els.angleDeg.value);
+
+            // If no best yet, draw baseline axes
+            const motor = useCustomMount
+                ? { x: customX, y: customY }
+                : (best ? { x: best.x, y: best.y } : { x: -d * 0.7, y: -d * 0.7 });
+            const hinge = { x: 0, y: 0 };
+            const stroke = { x: d * Math.sin(theta), y: -d * Math.cos(theta) };
+            
+            // Calculate CG position
+            const panelLength = Math.sqrt(stroke.x ** 2 + stroke.y ** 2);
+            const panelDir = panelLength > 0 ? { x: stroke.x / panelLength, y: stroke.y / panelLength } : { x: 0, y: -1 };
+            const cg = { x: panelDir.x * c, y: panelDir.y * c };
+
+            // Determine view bounds (always include 0° and 90° stroke positions)
+            const stroke0 = { x: 0, y: -d };
+            const stroke90 = { x: d, y: 0 };
+            const rc2Left = { x: -Rc2, y: -d };
+            const rc2Bottom = { x: 0, y: -d - Rc2 };
+            const pts = [
+                hinge, stroke, motor, cg, stroke0, stroke90, rc2Left, rc2Bottom
+            ];
+
+            let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+            for (const p of pts) {
+                minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+            }
+            // pad
+            const pad = Math.max(3, 0.12 * Math.max(maxX - minX, maxY - minY));
+            minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+
+            // map world -> canvas
+            const W = canvas.width, H = canvas.height;
+            const sx = W / (maxX - minX);
+            const sy = H / (maxY - minY);
+            const s = Math.min(sx, sy);
+            const ox = (W - s * (maxX - minX)) / 2 - s * minX;
+            const oy = (H - s * (maxY - minY)) / 2 - s * minY;
+
+            const drawOffsetY = 24;
+            function X(x) { return s * x + ox; }
+            function Y(y) { return H - (s * y + oy) + drawOffsetY; } // flip Y up
+            geomTransform = { s, ox, oy, W, H, X, Y, drawOffsetY };
+
+            // draw axes
+            // axes removed per user request
+
+            // draw retracted-length path (Rc2) in 3rd quadrant, color invalid region in red
+            if (isFinite(Rc2) && Rc2 > 0 && isFinite(d)) {
+                const { Rc1 } = readInputs();
+                const steps = 180;
+                const center = { x: 0, y: -d };
+
+                function drawArcSegment(isValid) {
+                    ctx.save();
+                    ctx.strokeStyle = isValid ? "rgba(122,162,255,.45)" : "rgba(255,107,107,.6)";
+                    ctx.lineWidth = 2;
+                    ctx.setLineDash([6, 6]);
+                    ctx.beginPath();
+                    let penDown = false;
+                    for (let i = 0; i <= steps; i++) {
+                        const t = (2 * Math.PI) * (i / steps);
+                        const px = center.x + Rc2 * Math.cos(t);
+                        const py = center.y + Rc2 * Math.sin(t);
+                        const inThird = (px < 0) && (py < 0);
+                        if (!inThird) {
+                            penDown = false;
+                            continue;
+                        }
+                        const h2h90 = Math.hypot(px - d, py);
+                        const valid = !isFinite(Rc1) || Rc1 <= 0 ? true : (h2h90 <= Rc1 + 1e-6);
+                        if (valid !== isValid) {
+                            penDown = false;
+                            continue;
+                        }
+                        if (!penDown) {
+                            ctx.moveTo(X(px), Y(py));
+                            penDown = true;
+                        } else {
+                            ctx.lineTo(X(px), Y(py));
+                        }
+                    }
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                drawArcSegment(true);
+                drawArcSegment(false);
+            }
+
+            // draw arc path of stroke-end (quarter circle)
+            ctx.strokeStyle = "rgba(122,162,255,.35)";
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            const steps = 60;
+            for (let i = 0; i <= steps; i++) {
+                const t = (Math.PI / 2) * (i / steps);
+                const px = d * Math.sin(t);
+                const py = -d * Math.cos(t);
+                if (i === 0) ctx.moveTo(X(px), Y(py));
+                else ctx.lineTo(X(px), Y(py));
+            }
+            ctx.stroke();
+
+            // draw panel line (from hinge through stroke point to CG)
+            ctx.strokeStyle = "rgba(233,236,255,.85)";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(X(hinge.x), Y(hinge.y));
+            ctx.lineTo(X(cg.x), Y(cg.y));
+            ctx.stroke();
+            
+            // draw CG point
+            ctx.fillStyle = "rgba(255,100,100,.95)";
+            ctx.beginPath();
+            ctx.arc(X(cg.x), Y(cg.y), 6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            // draw G force arrow pointing down from CG (1.5 units long in world coords)
+            const arrowLen = 1.5;
+            const arrowBase = { x: cg.x, y: cg.y - arrowLen };
+            ctx.strokeStyle = "rgba(255,100,100,.95)";
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.moveTo(X(cg.x), Y(cg.y));
+            ctx.lineTo(X(arrowBase.x), Y(arrowBase.y));
+            ctx.stroke();
+            
+            // draw arrowhead
+            const arrowHeadSize = 0.4;
+            ctx.beginPath();
+            ctx.moveTo(X(arrowBase.x - arrowHeadSize), Y(arrowBase.y + arrowHeadSize * 0.5));
+            ctx.lineTo(X(arrowBase.x), Y(arrowBase.y));
+            ctx.lineTo(X(arrowBase.x + arrowHeadSize), Y(arrowBase.y + arrowHeadSize * 0.5));
+            ctx.stroke();
+
+            // draw actuator line (motor->stroke)
+            ctx.strokeStyle = "rgba(255,223,0,.85)";
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(X(motor.x), Y(motor.y));
+            ctx.lineTo(X(stroke.x), Y(stroke.y));
+            ctx.stroke();
+
+            // draw points
+            function dot(p, r, fill, label) {
+                ctx.fillStyle = fill;
+                ctx.beginPath();
+                ctx.arc(X(p.x), Y(p.y), r, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = "rgba(233,236,255,.9)";
+                ctx.font = labelFont;
+                if (label === "best") {
+                    const w = ctx.measureText(label).width;
+                    ctx.fillText(label, X(p.x) - w - 8, Y(p.y) - 8);
+                } else {
+                    ctx.fillText(label, X(p.x) + 8, Y(p.y) - 8);
+                }
+            }
+
+            dot(hinge, 5, "rgba(233,236,255,.95)", "hinge");
+            dot(stroke, 5, "rgba(122,162,255,.95)", "stroke-end");
+            dot(motor, 6, best ? "rgba(255,255,255,.95)" : "rgba(255,255,255,.55)", "motor-end");
+            if (useCustomMount && suggestedBest) {
+                dot({ x: suggestedBest.x, y: suggestedBest.y }, 5, "rgba(255,255,255,.35)", "best");
+            }
+
+            // show current per-actuator load at angle
+            if (best) {
+                const { G, c } = readInputs();
+                const L = loadPerActuator(theta, G, c, d, best.a, best.b);
+                const h2h = Math.sqrt((stroke.x - motor.x) ** 2 + (stroke.y - motor.y) ** 2);
+                const msg2 = `Current Hole to Hole length of actuator: ${h2h.toFixed(2)}`;
+                ctx.fillStyle = "rgba(167,176,214,.95)";
+                ctx.font = labelFont;
+                ctx.textBaseline = "top";
+                ctx.textAlign = "left";
+                ctx.fillText(msg2, labelX, labelTop);
+            } else {
+                ctx.fillStyle = "rgba(167,176,214,.95)";
+                ctx.font = labelFont;
+                ctx.textBaseline = "top";
+                ctx.textAlign = "left";
+                ctx.fillText("Press Calculate to solve for the best motor mount point.", labelX, labelTop);
+            }
+            
+            // Always show legend
+            ctx.fillStyle = "rgba(233,236,255,.95)";
+            ctx.font = labelFont;
+            ctx.textBaseline = "top";
+            ctx.textAlign = "left";
+            ctx.fillText("White line = Panel", labelX, legendTop);
+            
+            ctx.fillStyle = "rgba(255,223,0,.95)";
+            ctx.fillText("Yellow line = Actuator", labelX, legendTop + labelGap);
+            
+            ctx.fillStyle = "rgba(255,100,100,.95)";
+            ctx.fillText("Red arrow = Gravity", labelX, legendTop + labelGap * 2);
+
+            ctx.fillStyle = "rgba(122,162,255,.9)";
+            ctx.fillText("Blue dashed = Possible motor-end mounting points", labelX, legendTop + labelGap * 3);
+        }
+
+        // ---------- Wire up ----------
+        els.calcBtn.addEventListener("click", computeBest);
+        els.angleDeg.addEventListener("input", () => renderGeometry());
+        els.useCustomMount.addEventListener("change", () => {
+            if (els.useCustomMount.checked && suggestedBest) {
+                els.customX.value = suggestedBest.x.toFixed(3);
+                els.customY.value = suggestedBest.y.toFixed(3);
+            } else if (!els.useCustomMount.checked) {
+                els.customX.value = "0";
+                els.customY.value = "0";
+            }
+            els.customMountDetails.style.display = els.useCustomMount.checked ? "block" : "none";
+            computeBest();
+        });
+
+        function handleCustomXCommit() {
+            if (!els.useCustomMount.checked || syncingCustom) return;
+            syncingCustom = true;
+            const xVal = Number(els.customX.value);
+            const res = syncCustomFromX(xVal);
+            if (!res.ok) {
+                if (lastValidCustom) {
+                    els.customX.value = lastValidCustom.x.toFixed(3);
+                    els.customY.value = lastValidCustom.y.toFixed(3);
+                }
+                warnCustom(res.reason);
+                syncingCustom = false;
+                return;
+            }
+            const check = validateCustomPoint(res.x, res.y);
+            if (!check.ok) {
+                if (lastValidCustom) {
+                    els.customX.value = lastValidCustom.x.toFixed(3);
+                    els.customY.value = lastValidCustom.y.toFixed(3);
+                }
+                warnCustom(check.reason);
+                syncingCustom = false;
+                return;
+            }
+            els.customX.value = res.x.toFixed(3);
+            els.customY.value = res.y.toFixed(3);
+            syncingCustom = false;
+            computeBest();
+        }
+
+        function handleCustomYCommit() {
+            if (!els.useCustomMount.checked || syncingCustom) return;
+            syncingCustom = true;
+            const yVal = Number(els.customY.value);
+            const res = syncCustomFromY(yVal);
+            if (!res.ok) {
+                if (lastValidCustom) {
+                    els.customX.value = lastValidCustom.x.toFixed(3);
+                    els.customY.value = lastValidCustom.y.toFixed(3);
+                }
+                warnCustom(res.reason);
+                syncingCustom = false;
+                return;
+            }
+            const check = validateCustomPoint(res.x, res.y);
+            if (!check.ok) {
+                if (lastValidCustom) {
+                    els.customX.value = lastValidCustom.x.toFixed(3);
+                    els.customY.value = lastValidCustom.y.toFixed(3);
+                }
+                warnCustom(check.reason);
+                syncingCustom = false;
+                return;
+            }
+            els.customX.value = res.x.toFixed(3);
+            els.customY.value = res.y.toFixed(3);
+            syncingCustom = false;
+            computeBest();
+        }
+
+        els.customX.addEventListener("change", handleCustomXCommit);
+        els.customX.addEventListener("blur", handleCustomXCommit);
+        els.customY.addEventListener("change", handleCustomYCommit);
+        els.customY.addEventListener("blur", handleCustomYCommit);
+        els.geom.addEventListener("pointerdown", (e) => {
+            const { useCustomMount, customX, customY } = readInputs();
+            if (!useCustomMount || !geomTransform) return;
+
+            const rect = els.geom.getBoundingClientRect();
+            const cx = (e.clientX - rect.left) * (els.geom.width / rect.width);
+            const cy = (e.clientY - rect.top) * (els.geom.height / rect.height);
+
+            const mx = geomTransform.X(customX);
+            const my = geomTransform.Y(customY);
+            const dist = Math.hypot(cx - mx, cy - my);
+            if (dist > 12) return;
+
+            draggingMotor = true;
+            els.geom.setPointerCapture(e.pointerId);
+        });
+
+        els.geom.addEventListener("pointermove", (e) => {
+            if (!draggingMotor || !geomTransform) return;
+            const rect = els.geom.getBoundingClientRect();
+            const cx = (e.clientX - rect.left) * (els.geom.width / rect.width);
+            const cy = (e.clientY - rect.top) * (els.geom.height / rect.height);
+
+            const worldX = (cx - geomTransform.ox) / geomTransform.s;
+            const worldY = ((geomTransform.H - cy + geomTransform.drawOffsetY) - geomTransform.oy) / geomTransform.s;
+
+            const { d, Rc1, Rc2, customX, customY } = readInputs();
+            const center = { x: 0, y: -d };
+            const radius = Rc2;
+            let vx = worldX - center.x;
+            let vy = worldY - center.y;
+            let len = Math.hypot(vx, vy);
+            if (!isFinite(len) || len < 1e-9) {
+                vx = customX - center.x;
+                vy = customY - center.y;
+                len = Math.hypot(vx, vy);
+            }
+            let nextX = worldX;
+            let nextY = worldY;
+            if (isFinite(len) && len > 1e-9 && isFinite(radius) && radius > 0) {
+                const ux = vx / len;
+                const uy = vy / len;
+                nextX = center.x + ux * radius;
+                nextY = center.y + uy * radius;
+            }
+
+            const h2h90 = Math.hypot(nextX - d, nextY);
+            const h2hOk = !isFinite(Rc1) || Rc1 <= 0 || !isFinite(h2h90) ? true : (h2h90 <= Rc1 + 1e-6);
+            if (h2hOk) {
+                lastValidCustom = { x: nextX, y: nextY };
+                els.customX.value = nextX.toFixed(3);
+                els.customY.value = nextY.toFixed(3);
+            } else if (lastValidCustom) {
+                els.customX.value = lastValidCustom.x.toFixed(3);
+                els.customY.value = lastValidCustom.y.toFixed(3);
+            }
+            computeBest();
+        });
+
+        const stopDrag = (e) => {
+            if (!draggingMotor) return;
+            draggingMotor = false;
+            if (e && e.pointerId != null) {
+                try { els.geom.releasePointerCapture(e.pointerId); } catch (_) { }
+            }
+        };
+        els.geom.addEventListener("pointerup", stopDrag);
+        els.geom.addEventListener("pointerleave", stopDrag);
+        els.geom.addEventListener("pointercancel", stopDrag);
+
+        // Auto-calc on first load
+        computeBest();
+    </script>
+</body>
+
+</html>
